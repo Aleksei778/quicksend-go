@@ -1,0 +1,65 @@
+package token
+
+import (
+	"fmt"
+	"quicksend/internal/crypto"
+	"quicksend/internal/user"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type Token struct {
+	gorm.Model
+	UserID  uint      `gorm:"uniqueIndex;not null"`
+	User    user.User `gorm:"foreignKey:UserID"`
+	Access  string    `gorm:"column:access;type:text;index;not null"`
+	Refresh string    `gorm:"column:refresh;type:text;index;not null"`
+	Expiry  time.Time `gorm:"not null"`
+}
+
+func (t *Token) BeforeSave(tx *gorm.DB) (err error) {
+	t.Access, err = crypto.Encrypt(t.Access)
+	if err != nil {
+		return fmt.Errorf("could not encrypt access token: %v", err)
+	}
+
+	t.Refresh, err = crypto.Encrypt(t.Refresh)
+	if err != nil {
+		return fmt.Errorf("could not encrypt refresh token: %v", err)
+	}
+
+	return nil
+}
+
+func (t *Token) AfterSave(tx *gorm.DB) (err error) {
+	t.Access, err = crypto.Decrypt(t.Access)
+	if err != nil {
+		return fmt.Errorf("could not decrypt access token after save: %v", err)
+	}
+
+	t.Refresh, err = crypto.Decrypt(t.Refresh)
+	if err != nil {
+		return fmt.Errorf("could not decrypt refresh token after save: %v", err)
+	}
+
+	return nil
+}
+
+func (t *Token) AfterFind(tx *gorm.DB) (err error) {
+	t.Access, err = crypto.Decrypt(t.Access)
+	if err != nil {
+		return fmt.Errorf("could not decrypt access token: %v", err)
+	}
+
+	t.Refresh, err = crypto.Decrypt(t.Refresh)
+	if err != nil {
+		return fmt.Errorf("could not decrypt refresh token: %v", err)
+	}
+
+	return nil
+}
+
+func (t *Token) isExpired() bool {
+	return time.Now().After(t.Expiry)
+}
