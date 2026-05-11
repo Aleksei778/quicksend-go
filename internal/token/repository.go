@@ -1,7 +1,8 @@
-package user
+package token
 
 import (
 	"errors"
+	"quicksend/internal/user"
 
 	"gorm.io/gorm"
 )
@@ -14,24 +15,13 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
-func (r *Repository) FindByID(id uint) (*User, error) {
-	var user User
-	err := r.db.First(&user, id).Error
+func (r *Repository) FindByUser(user user.User) (*Token, error) {
+	var token Token
+	err := r.db.Where("user_id = ?").First(&token, user.ID).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 
-	return &user, err
-}
-
-func (r *Repository) FindByEmail(email string) (*User, error) {
-	var user User
-	err := r.db.Where("email = ?", email).First(&user).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-
-	return &user, err
+	return &token, err
 }
