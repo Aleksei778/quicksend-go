@@ -3,6 +3,8 @@ package models
 import (
 	"time"
 
+	"quicksend/internal/user"
+
 	"gorm.io/gorm"
 )
 
@@ -27,7 +29,7 @@ type Campaign struct {
 	EndAt        *time.Time
 	Timezone     string       `gorm:"default:'UTC'"`
 	UserID       uint         `gorm:"not null"`
-	User         User         `gorm:"foreignKey:UserID"`
+	User         user.User    `gorm:"foreignKey:UserID"`
 	Recipients   []Recipient  `gorm:"foreignKey:CampaignID"`
 	Attachments  []Attachment `gorm:"foreignKey:CampaignID"`
 }

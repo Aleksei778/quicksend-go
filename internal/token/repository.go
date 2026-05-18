@@ -17,7 +17,7 @@ func NewRepository(db *gorm.DB) *Repository {
 
 func (r *Repository) FindByUser(user user.User) (*Token, error) {
 	var token Token
-	err := r.db.Where("user_id = ?").First(&token, user.ID).Error
+	err := r.db.Where("user_id = ?", user.ID).First(&token).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil

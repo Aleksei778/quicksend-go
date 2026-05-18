@@ -5,6 +5,7 @@ import (
 
 	"quicksend/internal/config"
 	"quicksend/internal/models"
+	"quicksend/internal/token"
 	"quicksend/internal/user"
 
 	"gorm.io/driver/postgres"
@@ -24,7 +25,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 
 	if err := db.AutoMigrate(
 		&user.User{},
-		&models.Token{},
+		&token.Token{},
 		&models.Campaign{},
 		&models.Recipient{},
 		&models.Attachment{},

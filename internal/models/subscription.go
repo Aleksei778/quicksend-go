@@ -3,6 +3,8 @@ package models
 import (
 	"time"
 
+	"quicksend/internal/user"
+
 	"gorm.io/gorm"
 )
 
@@ -47,6 +49,6 @@ type Subscription struct {
 	EndAt                 time.Time        `gorm:"not null"`
 	CanceledAt            *time.Time
 	FailedPaymentAttempts int  `gorm:"default:0"`
-	UserID                uint `gorm:"not null"`
-	User                  User `gorm:"foreignKey:UserID"`
+	UserID                uint      `gorm:"not null"`
+	User                  user.User `gorm:"foreignKey:UserID"`
 }

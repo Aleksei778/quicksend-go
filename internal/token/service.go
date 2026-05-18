@@ -2,6 +2,7 @@ package token
 
 import (
 	"quicksend/internal/config"
+	"quicksend/internal/user"
 	"time"
 
 	"gorm.io/gorm"
@@ -18,7 +19,7 @@ func NewService(db *gorm.DB, r *Repository, cfg *config.Config) *Service {
 }
 
 func (service *Service) FindOrCreate(dto FindOrCreate) (*Token, error) {
-	token, err := service.repository.FindByUser(dto.user)
+	token, err := service.repository.FindByUser(dto.User)
 
 	if err != nil {
 		return nil, err
@@ -28,15 +29,23 @@ func (service *Service) FindOrCreate(dto FindOrCreate) (*Token, error) {
 		return service.create(dto)
 	}
 
+	token.Access = dto.Access
+	token.Refresh = dto.Refresh
+	token.Expiry = dto.Expiry
+
+	if err := service.db.Save(token).Error; err != nil {
+		return nil, err
+	}
+
 	return token, nil
 }
 
 func (service *Service) create(dto FindOrCreate) (*Token, error) {
 	token := &Token{
-		UserID:  dto.user.ID,
-		Access:  dto.access,
-		Refresh: dto.refresh,
-		Expiry:  dto.expiry,
+		UserID:  dto.User.ID,
+		Access:  dto.Access,
+		Refresh: dto.Refresh,
+		Expiry:  dto.Expiry,
 	}
 
 	if err := service.db.Create(token).Error; err != nil {
@@ -44,6 +53,10 @@ func (service *Service) create(dto FindOrCreate) (*Token, error) {
 	}
 
 	return token, nil
+}
+
+func (service *Service) FindByUser(u user.User) (*Token, error) {
+	return service.repository.FindByUser(u)
 }
 
 func (service *Service) update(access string, expiry time.Time, token *Token) (*Token, error) {

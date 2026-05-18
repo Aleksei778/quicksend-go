@@ -1,5 +1,19 @@
 name: goquicksend
 services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: goquicksend_app
+    ports:
+      - "8080:8080"
+    volumes:
+      .:/app
+    env_file:
+      .emv
+    networks:
+      default:
+        ipv4_address: 179.70.0.2
 
   nginx:
     build:

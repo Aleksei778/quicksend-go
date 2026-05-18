@@ -34,6 +34,8 @@ type Config struct {
 	// Google
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID,required"`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET,required"`
+	WebsiteScopes      []string
+	ExtensionScopes    []string
 
 	// App
 	FrontendURL string `env:"FRONTEND_URL,required"`
@@ -66,7 +68,20 @@ func (c *Config) GoogleRedirectURI() string {
 }
 
 func Load() (*Config, error) {
-	cfg := &Config{}
+	cfg := &Config{
+		WebsiteScopes: []string{
+			"openid",
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+		ExtensionScopes: []string{
+			"openid",
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+			"https://www.googleapis.com/auth/gmail.send",
+			"https://www.googleapis.com/auth/spreadsheets.readonly",
+		},
+	}
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}

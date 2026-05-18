@@ -3,6 +3,8 @@ package models
 import (
 	"time"
 
+	"quicksend/internal/user"
+
 	"gorm.io/gorm"
 )
 
@@ -26,6 +28,6 @@ type Payment struct {
 	PaymentMethod     string
 	Description       string
 	PaidAt            *time.Time
-	User              User         `gorm:"foreignKey:UserID"`
+	User              user.User    `gorm:"foreignKey:UserID"`
 	Subscription      Subscription `gorm:"foreignKey:SubscriptionID"`
 }

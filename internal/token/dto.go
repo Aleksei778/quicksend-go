@@ -6,8 +6,8 @@ import (
 )
 
 type FindOrCreate struct {
-	user    user.User
-	access  string
-	refresh string
-	expiry  time.Time
+	User    user.User
+	Access  string
+	Refresh string
+	Expiry  time.Time
 }
