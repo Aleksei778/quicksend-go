@@ -2,17 +2,16 @@ include .env
 
 SHELL = /bin/sh
 UID := $(shell id -u)
-COMPOSE = docker compose -p recru_backend -f docker-compose.local.yaml
+COMPOSE = docker compose -p goquicksend -f docker-compose.local.yaml
+NETWORK = goquicksend_network
 
-.PHONY: docker-up docker-down docker-restart docker-stop \
-        go-bash db-bash db-console redis-bash redis-cli \
-        composer-install composer-update composer-require composer-require-d composer-remove \
-        laravel-setup project-installation \
-        db-migrate db-migrate-force db-reset db-rollback db-fresh db-fresh-seed db-make-migration db-seed db-seed-class \
-        logs logs-container logs-laravel containers-status \
-        help test
+.PHONY: up down restart stop \
+        go db db-c redis redis-c
 
 # === DOCKER OPERATIONS ===
+network:
+	@docker network inspect ${NETWORK} >/dev/null 2>&1 || docker network create --driver bridge ${NETWORK}
+
 up:
 	@env UID=${UID} $(COMPOSE) up -d --remove-orphans
 

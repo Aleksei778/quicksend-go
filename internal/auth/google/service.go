@@ -95,7 +95,6 @@ func (s *Service) Callback(c *gin.Context) {
 
 	userInfo, err := s.getUser
 
-
 }
 
 func (s *Service) createOauthConfig(source Source) *oauth2.Config {
