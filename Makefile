@@ -16,16 +16,16 @@ up:
 	@env UID=${UID} $(COMPOSE) up -d --remove-orphans
 
 down:
-	@env UID=${UID} $(COMPOSE) down
+	@env UID=${UID} $(COMPOSE) down -v
 
-restart: docker-down docker-up
+restart: down up
 
 stop:
 	@env UID=${UID} $(COMPOSE) stop
 
 # === CONTAINER ACCESS ===
 go:
-	@env UID=${UID} $(COMPOSE) exec app bash
+	@env UID=${UID} $(COMPOSE) exec app sh
 
 db:
 	@env UID=${UID} $(COMPOSE) exec db bash

@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"quicksend/internal/subscription"
 
 	"quicksend/internal/config"
 	"quicksend/internal/models"
@@ -29,7 +30,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.Campaign{},
 		&models.Recipient{},
 		&models.Attachment{},
-		&models.Subscription{},
+		&subscription.Subscription{},
 		&models.Payment{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to auto-migrate: %w", err)

@@ -1,11 +1,14 @@
 package google
 
 import (
+	"context"
 	"crypto/rand"
+	"fmt"
 	"log"
 	"net/http"
 	"quicksend/internal/auth/jwt"
 	"quicksend/internal/config"
+	"quicksend/internal/subscription"
 	"quicksend/internal/token"
 	"quicksend/internal/user"
 
@@ -13,6 +16,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	googleoauth "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 )
 
 type Source string
@@ -27,6 +32,7 @@ type Service struct {
 	userService  *user.Service
 	jwtService   *jwt.Service
 	tokenService *token.Service
+	subscriptionService *subscription.Service
 }
 
 func NewService(
@@ -87,13 +93,45 @@ func (s *Service) Callback(c *gin.Context) {
 
 	oauthCfg := s.createOauthConfig(source)
 
-	oauthToken, err := oauthCfg.Exchange(c.Background(), c.Query("code"))
+	oauthToken, err := oauthCfg.Exchange(context.Background(), c.Query("code"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "no google token data"})
 		return
 	}
 
-	userInfo, err := s.getUser
+	userInfo, err := s.getUserInfo(oauthToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "could not get user info"})
+		return
+	}
+
+	u, err := s.userService.FindOrCreate(user.FindOrCreate{
+		Email:      userInfo.Email,
+		FirstName:  userInfo.GivenName,
+		LastName:   userInfo.FamilyName,
+		PictureUrl: userInfo.Picture,
+		OauthID:    userInfo.Id,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if source == SourceExtension {
+		_, err = s.tokenService.FindOrCreate(token.FindOrCreate{
+			User:    u,
+			Access:  oauthToken.AccessToken,
+			Refresh: oauthToken.RefreshToken,
+			Expiry:  oauthToken.Expiry,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if err := s.
+	}
+
 
 }
 
@@ -109,5 +147,56 @@ func (s *Service) createOauthConfig(source Source) *oauth2.Config {
 		RedirectURL:  s.cfg.GoogleRedirectURI(),
 		Scopes:       scopes,
 		Endpoint:     google.Endpoint,
+	}
+}
+
+func (s *Service) getUserInfo(token *oauth2.Token) (*googleoauth.Userinfo, error) {
+	httpClient := oauth2.NewClient(context.Background(),
+		oauth2.StaticTokenSource(token),
+	)
+
+	svc, err := googleoauth.NewService(context.Background(),
+		option.WithHTTPClient(httpClient),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := svc.Userinfo.Get().Do()
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
+}
+
+func (s *Service) redirect(
+	c *gin.Context,
+	accessToken, refreshToken string,
+	source Source,
+	lang string,
+) {
+	if source == SourceWebsite {
+		c.SetCookie(
+			"access_jwt_token",
+			"Bearer " + accessToken,
+			s.cfg.JWTAccessExpHours * 3600,
+			"/", "", true, true,
+		)
+		c.SetCookie(
+			"refresh_jwt_token",
+			"Bearer " + refreshToken,
+			s.cfg.JWTRefreshExpDays * 86400,
+			"/", "", true, true,
+		)
+		c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/%s/profile", s.cfg.FrontendURL, lang),
+		)
+	} else {
+		c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("https://%s.chromiumapp.org/callback?access_jwt_token=%s&refresh_jwt_token=%s",
+				s.cfg.ExtensionID, accessToken, refreshToken,
+			),
+		)
 	}
 }
