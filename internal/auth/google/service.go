@@ -28,10 +28,10 @@ const (
 )
 
 type Service struct {
-	cfg          *config.Config
-	userService  *user.Service
-	jwtService   *jwt.Service
-	tokenService *token.Service
+	cfg                 *config.Config
+	userService         *user.Service
+	jwtService          *jwt.Service
+	tokenService        *token.Service
 	subscriptionService *subscription.Service
 }
 
@@ -129,10 +129,25 @@ func (s *Service) Callback(c *gin.Context) {
 			return
 		}
 
-		if err := s.
+		if err := s.subscriptionService.CreateTrial(u); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
+	accessToken, err := s.jwtService.CreateAccessToken(u)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
+	refreshToken, err := s.jwtService.CreateRefreshToken(u)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	s.redirect(c, accessToken, refreshToken, source, lang)
 }
 
 func (s *Service) createOauthConfig(source Source) *oauth2.Config {
@@ -179,14 +194,14 @@ func (s *Service) redirect(
 	if source == SourceWebsite {
 		c.SetCookie(
 			"access_jwt_token",
-			"Bearer " + accessToken,
-			s.cfg.JWTAccessExpHours * 3600,
+			"Bearer "+accessToken,
+			s.cfg.JWTAccessExpHours*3600,
 			"/", "", true, true,
 		)
 		c.SetCookie(
 			"refresh_jwt_token",
-			"Bearer " + refreshToken,
-			s.cfg.JWTRefreshExpDays * 86400,
+			"Bearer "+refreshToken,
+			s.cfg.JWTRefreshExpDays*86400,
 			"/", "", true, true,
 		)
 		c.Redirect(http.StatusTemporaryRedirect,
