@@ -293,7 +293,7 @@ func (s *Service) sign(u *usermod.User, tokenType string, ttl time.Duration, sec
 func (s *Service) verify(tokenStr string, expectedType string, secret string) (*JwtClaims, error) {
 	claims := &JwtClaims{}
 
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+	jwtToken, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
@@ -305,7 +305,7 @@ func (s *Service) verify(tokenStr string, expectedType string, secret string) (*
 		return nil, err
 	}
 
-	if !token.Valid {
+	if !jwtToken.Valid {
 		return nil, errors.New("invalid token")
 	}
 

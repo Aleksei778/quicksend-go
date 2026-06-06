@@ -60,6 +60,6 @@ func (t *Token) AfterFind(tx *gorm.DB) (err error) {
 	return nil
 }
 
-func (t *Token) isExpired() bool {
+func (t *Token) IsExpired() bool {
 	return time.Now().After(t.Expiry)
 }
