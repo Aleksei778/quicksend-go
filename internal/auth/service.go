@@ -1,19 +1,21 @@
-package google
+package auth
 
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
-	"quicksend/internal/auth/jwt"
 	"quicksend/internal/config"
 	"quicksend/internal/subscription"
 	"quicksend/internal/token"
-	"quicksend/internal/user"
+	usermod "quicksend/internal/user"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	googleoauth "google.golang.org/api/oauth2/v2"
@@ -22,30 +24,43 @@ import (
 
 type Source string
 
+type JwtClaims struct {
+	UserID  uint   `json:"user_id"`
+	Email   string `json:"email"`
+	OauthID string `json:"oauth_id"`
+	Type    string `json:"type"`
+	jwt.RegisteredClaims
+}
+
+type Service struct {
+	cfg                 *config.Config
+	userService         *usermod.Service
+	userRepository      *usermod.Repository
+	tokenService        *token.Service
+	subscriptionService *subscription.Service
+}
+
+type JwtTokenPair struct {
+	AccessToken  string
+	RefreshToken string
+}
+
 const (
 	SourceWebsite   Source = "website"
 	SourceExtension Source = "extension"
 )
 
-type Service struct {
-	cfg                 *config.Config
-	userService         *user.Service
-	jwtService          *jwt.Service
-	tokenService        *token.Service
-	subscriptionService *subscription.Service
-}
-
 func NewService(
 	cfg *config.Config,
-	userService *user.Service,
-	jwtService *jwt.Service,
+	userService *usermod.Service,
 	tokenService *token.Service,
+	subscriptionService *subscription.Service,
 ) *Service {
 	return &Service{
-		cfg:          cfg,
-		userService:  userService,
-		jwtService:   jwtService,
-		tokenService: tokenService,
+		cfg:                 cfg,
+		userService:         userService,
+		tokenService:        tokenService,
+		subscriptionService: subscriptionService,
 	}
 }
 
@@ -62,7 +77,8 @@ func (s *Service) Login(c *gin.Context) {
 	session.Set("state", state)
 	err := session.Save()
 	if err != nil {
-		log.Printf("Error saving session: %v", err)
+		slog.Error("failed to save session", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "session error"})
 		return
 	}
 
@@ -105,7 +121,7 @@ func (s *Service) Callback(c *gin.Context) {
 		return
 	}
 
-	u, err := s.userService.FindOrCreate(user.FindOrCreate{
+	u, err := s.userService.FindOrCreate(usermod.FindOrCreate{
 		Email:      userInfo.Email,
 		FirstName:  userInfo.GivenName,
 		LastName:   userInfo.FamilyName,
@@ -135,13 +151,13 @@ func (s *Service) Callback(c *gin.Context) {
 		}
 	}
 
-	accessToken, err := s.jwtService.CreateAccessToken(u)
+	accessToken, err := s.CreateAccessToken(u)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	refreshToken, err := s.jwtService.CreateRefreshToken(u)
+	refreshToken, err := s.CreateRefreshToken(u)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -214,4 +230,88 @@ func (s *Service) redirect(
 			),
 		)
 	}
+}
+
+func (s *Service) CreateAccessToken(u *usermod.User) (string, error) {
+	return s.sign(u, "access", time.Duration(s.cfg.JWTAccessExpHours)*time.Hour, s.cfg.JWTAccessSecret)
+}
+
+func (s *Service) CreateRefreshToken(u *usermod.User) (string, error) {
+	return s.sign(u, "refresh", time.Duration(s.cfg.JWTRefreshExpDays)*24*time.Hour, s.cfg.JWTRefreshSecret)
+}
+
+func (s *Service) VerifyAccessToken(tokenStr string) (*JwtClaims, error) {
+	return s.verify(tokenStr, "access", s.cfg.JWTAccessSecret)
+}
+
+func (s *Service) VerifyRefreshToken(tokenStr string) (*JwtClaims, error) {
+	return s.verify(tokenStr, "refresh", s.cfg.JWTRefreshSecret)
+}
+
+func (s *Service) RefreshToken(tokenStr string) (*JwtTokenPair, error) {
+	claims, err := s.VerifyRefreshToken(tokenStr)
+	if err != nil {
+		return nil, fmt.Errorf("jwt: could not verify token: %w", err)
+	}
+
+	user, err := s.userRepository.FindByID(claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("jwt: could not find user: %w", err)
+	}
+
+	accessToken, err := s.CreateAccessToken(user)
+	if err != nil {
+		return nil, fmt.Errorf("jwt: could not create access token: %w", err)
+	}
+
+	refreshToken, err := s.CreateRefreshToken(user)
+	if err != nil {
+		return nil, fmt.Errorf("jwt: could not create refresh token: %w", err)
+	}
+
+	return &JwtTokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func (s *Service) sign(u *usermod.User, tokenType string, ttl time.Duration, secret string) (string, error) {
+	claims := JwtClaims{
+		UserID:  u.ID,
+		Email:   u.Email,
+		OauthID: u.OauthID,
+		Type:    tokenType,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+}
+
+func (s *Service) verify(tokenStr string, expectedType string, secret string) (*JwtClaims, error) {
+	claims := &JwtClaims{}
+
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	if claims.Type != expectedType {
+		return nil, errors.New("invalid token type")
+	}
+
+	return claims, nil
 }

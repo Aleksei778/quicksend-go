@@ -1,12 +1,9 @@
 package subscription
 
-import
 import (
 	"fmt"
 	"quicksend/internal/user"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Service struct {
@@ -28,10 +25,12 @@ func (s *Service) CreateTrial(u *user.User) error {
 
 	now := time.Now().UTC()
 	sub := &Subscription{
-		UserID: u.ID,
-		Plan: PlanTrial,
-		IsActive: true,
+		UserID:    u.ID,
+		Plan:      PlanTrial,
+		IsActive:  true,
 		StartedAt: now,
-		EndAt: now.AddDate(0, 0, ),
+		EndAt:     now.AddDate(0, 0, 10),
 	}
+
+	return s.repo.Create(sub)
 }

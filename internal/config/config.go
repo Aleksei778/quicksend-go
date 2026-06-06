@@ -53,7 +53,11 @@ type Config struct {
 	YookassaSecretKey string `env:"YOOKASSA_SECRET_KEY"`
 	PaymentReturnURL  string `env:"PAYMENT_RETURN_URL"`
 
-	BuggregatorDSN string `env:"BUGGREGATOR_DSN"`
+	BuggregatorDSN     string `env:"BUGGREGATOR_DSN"`
+	BuggregatorTCPAddr string `env:"BUGGREGATOR_TCP_ADDR" envDefault:"buggregator:9912"`
+
+	// App server
+	Port string `env:"APP_PORT" envDefault:"8080"`
 }
 
 func (c *Config) DSN() string {

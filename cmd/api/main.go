@@ -4,6 +4,7 @@ import (
 	"log"
 	"quicksend/internal/config"
 	"quicksend/internal/crypto"
+	"quicksend/internal/logger"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -22,6 +23,8 @@ func main() {
 		log.Fatalf("failed to init sentry: %v", err)
 	}
 	defer sentry.Flush(2 * time.Second)
+
+	err = logger.BuggregatorHandler{}
 
 	crypto.Init(cfg.EncryptionKey)
 
