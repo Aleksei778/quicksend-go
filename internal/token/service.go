@@ -53,7 +53,7 @@ func (svc *Service) RefreshToken(ctx context.Context, token *Token) error {
 }
 
 func (svc *Service) FindOrCreate(dto FindOrCreate) (*Token, error) {
-	token, err := svc.repo.FindByUser(dto.User)
+	token, err := svc.FindByUser(dto.User)
 
 	if err != nil {
 		return nil, err

@@ -5,29 +5,37 @@ import (
 )
 
 type Service struct {
-	db         *gorm.DB
-	repository *Repository
+	db   *gorm.DB
+	repo *Repository
 }
 
 func NewService(db *gorm.DB, r *Repository) *Service {
-	return &Service{db: db, repository: r}
+	return &Service{db: db, repo: r}
 }
 
-func (service *Service) FindOrCreate(dto FindOrCreate) (*User, error) {
-	user, err := service.repository.FindByEmail(dto.Email)
+func (svc *Service) FindOrCreate(dto FindOrCreate) (*User, error) {
+	user, err := svc.repo.FindByEmail(dto.Email)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if user == nil {
-		return service.create(dto)
+		return svc.create(dto)
 	}
 
 	return user, nil
 }
 
-func (service *Service) create(dto FindOrCreate) (*User, error) {
+func (svc *Service) FindByID(id uint) (*User, error) {
+	return svc.repo.FindByID(id)
+}
+
+func (svc *Service) FindByEmail(email string) (*User, error) {
+	return svc.repo.FindByEmail(email)
+}
+
+func (svc *Service) create(dto FindOrCreate) (*User, error) {
 	user := &User{
 		Email:      dto.Email,
 		FirstName:  dto.FirstName,
@@ -36,7 +44,7 @@ func (service *Service) create(dto FindOrCreate) (*User, error) {
 		OauthID:    dto.OauthID,
 	}
 
-	if err := service.db.Create(user).Error; err != nil {
+	if err := svc.db.Create(user).Error; err != nil {
 		return nil, err
 	}
 

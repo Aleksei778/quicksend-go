@@ -33,11 +33,10 @@ type JwtClaims struct {
 }
 
 type Service struct {
-	cfg                 *config.Config
-	userService         *usermod.Service
-	userRepository      *usermod.Repository
-	tokenService        *token.Service
-	subscriptionService *subscription.Service
+	cfg             *config.Config
+	userSvc         *usermod.Service
+	tokenSvc        *token.Service
+	subscriptionSvc *subscription.Service
 }
 
 type JwtTokenPair struct {
@@ -52,15 +51,15 @@ const (
 
 func NewService(
 	cfg *config.Config,
-	userService *usermod.Service,
-	tokenService *token.Service,
-	subscriptionService *subscription.Service,
+	userSvc *usermod.Service,
+	tokenSvc *token.Service,
+	subscriptionSvc *subscription.Service,
 ) *Service {
 	return &Service{
-		cfg:                 cfg,
-		userService:         userService,
-		tokenService:        tokenService,
-		subscriptionService: subscriptionService,
+		cfg:             cfg,
+		userSvc:         userSvc,
+		tokenSvc:        tokenSvc,
+		subscriptionSvc: subscriptionSvc,
 	}
 }
 
@@ -121,7 +120,7 @@ func (s *Service) Callback(c *gin.Context) {
 		return
 	}
 
-	u, err := s.userService.FindOrCreate(usermod.FindOrCreate{
+	u, err := s.userSvc.FindOrCreate(usermod.FindOrCreate{
 		Email:      userInfo.Email,
 		FirstName:  userInfo.GivenName,
 		LastName:   userInfo.FamilyName,
@@ -134,7 +133,7 @@ func (s *Service) Callback(c *gin.Context) {
 	}
 
 	if source == SourceExtension {
-		_, err = s.tokenService.FindOrCreate(token.FindOrCreate{
+		_, err = s.tokenSvc.FindOrCreate(token.FindOrCreate{
 			User:    u,
 			Access:  oauthToken.AccessToken,
 			Refresh: oauthToken.RefreshToken,
@@ -145,7 +144,7 @@ func (s *Service) Callback(c *gin.Context) {
 			return
 		}
 
-		if err := s.subscriptionService.CreateTrial(u); err != nil {
+		if err := s.subscriptionSvc.CreateTrial(u); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -254,7 +253,7 @@ func (s *Service) RefreshToken(tokenStr string) (*JwtTokenPair, error) {
 		return nil, fmt.Errorf("jwt: could not verify token: %w", err)
 	}
 
-	user, err := s.userRepository.FindByID(claims.UserID)
+	user, err := s.userSvc.FindByID(claims.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("jwt: could not find user: %w", err)
 	}

@@ -14,23 +14,22 @@ import (
 )
 
 type Service struct {
-	tokenRepository tokenmod.Repository
-	tokenService    tokenmod.Service
-	cfg             config.Config
+	tokenSvc *tokenmod.Service
+	cfg      *config.Config
 }
 
-func NewService(tokenRepository tokenmod.Repository, cfg config.Config) *Service {
-	return &Service{tokenRepository: tokenRepository, cfg: cfg}
+func NewService(tokenSvc *tokenmod.Service, cfg *config.Config) *Service {
+	return &Service{tokenSvc: tokenSvc, cfg: cfg}
 }
 
 func (s *Service) SendEmail(ctx context.Context, user *usermod.User, raw string) (*gmail.Message, error) {
-	token, err := s.tokenRepository.FindByUser(user)
+	token, err := s.tokenSvc.FindByUser(user)
 	if err != nil {
 		return nil, fmt.Errorf("gmail: google token not found for user %d: %w", user.ID, err)
 	}
 
 	if token.IsExpired() {
-		if err := s.tokenService.RefreshToken(ctx, token); err != nil {
+		if err := s.tokenSvc.RefreshToken(ctx, token); err != nil {
 			return nil, fmt.Errorf("gmail: google token not refreshed for user %d: %w", user.ID, err)
 		}
 	}

@@ -9,11 +9,14 @@ import (
 	"math"
 	"quicksend/internal/config"
 	"quicksend/internal/gmail"
+	tokenmod "quicksend/internal/token"
 	usermod "quicksend/internal/user"
 	"time"
 
 	"github.com/IBM/sarama"
 	"google.golang.org/api/googleapi"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type MessagePayload struct {
@@ -23,15 +26,21 @@ type MessagePayload struct {
 
 type GmailConsumer struct {
 	consumer sarama.ConsumerGroup
-	userRepo *usermod.Repository
+	userSvc  *usermod.Service
 	gmailSvc *gmail.Service
 	cfg      *config.Config
 }
 
-func NewGmailConsumer(consumer sarama.ConsumerGroup, userRepo *usermod.Repository, cfg *config.Config) *GmailConsumer {
+func NewGmailConsumer(
+	consumer sarama.ConsumerGroup,
+	userSvc *usermod.Service,
+	gmailSvc *gmail.Service,
+	cfg *config.Config,
+) *GmailConsumer {
 	return &GmailConsumer{
 		consumer: consumer,
-		userRepo: userRepo,
+		userSvc:  userSvc,
+		gmailSvc: gmailSvc,
 		cfg:      cfg,
 	}
 }
@@ -67,7 +76,7 @@ func (g *GmailConsumer) processMessage(ctx context.Context, msg *sarama.Consumer
 	}
 
 	userEmail := string(msg.Key)
-	user, err := g.userRepo.FindByEmail(userEmail)
+	user, err := g.userSvc.FindByEmail(userEmail)
 	if err != nil {
 		slog.Error("consumer: user not found", "email", userEmail)
 		return nil
@@ -111,4 +120,41 @@ func isRetryableError(err error) bool {
 	}
 
 	return false
+}
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		panic(err)
+	}
+
+	db, _ := gorm.Open(postgres.Open(cfg.DSN()))
+
+	saramaCfg := sarama.NewConfig()
+	consumer, _ := sarama.NewConsumerGroup(
+		[]string{cfg.KafkaBootstrapServers},
+		"gmail-consumer-group",
+		saramaCfg,
+	)
+	defer func(consumer sarama.ConsumerGroup) {
+		err := consumer.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(consumer)
+
+	tokenRepo := tokenmod.NewRepository(db)
+	tokenSvc := tokenmod.NewService(db, tokenRepo, cfg)
+
+	gmailSvc := gmail.NewService(tokenSvc, cfg)
+
+	userRepo := usermod.NewRepository(db)
+	userSvc := usermod.NewService(db, userRepo)
+
+	gmailConsumer := NewGmailConsumer(consumer, userSvc, gmailSvc, cfg)
+
+	ctx := context.Background()
+	if err := gmailConsumer.Start(ctx, cfg.KafkaTopic); err != nil {
+		slog.Error("consumer: stopped", "err", err)
+	}
 }
