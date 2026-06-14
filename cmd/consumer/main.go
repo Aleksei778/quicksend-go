@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"quicksend/internal/config"
-	"quicksend/internal/gmail"
+	"quicksend/internal/google/gmail"
 	tokenmod "quicksend/internal/token"
 	usermod "quicksend/internal/user"
 	"time"
